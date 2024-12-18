@@ -31,5 +31,19 @@ def neighbours_for_point(x: int, y: int)->  tuple[np.ndarray, np.ndarray]:
     return np.array(point_neighbours), np.array(border_neighbours)
 
 
+# Функция для получения соседей с учётом возможных выходов за границы
+def get_neighbors(x, y, grid):
+    neighbors = []
+    # Список возможных сдвигов по соседям (включая диагонали)
+    shifts = [(-1, -1), (-1, 0), (-1, 1),
+              ( 0, -1),          ( 0, 1),
+              ( 1, -1), ( 1, 0), ( 1, 1)]
+    
+    for dx, dy in shifts:
+        nx, ny = x + dx, y + dy
+        if 0 <= nx < grid.shape[0] and 0 <= ny < grid.shape[1]:
+            neighbors.append((nx, ny))
+    return neighbors
+
 if __name__ == "__main__":
     ic(neighbours_for_point(1, 1))
