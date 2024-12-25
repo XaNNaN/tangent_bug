@@ -6,12 +6,11 @@ import time
 from matplotlib.animation import FuncAnimation
 
 # Параметры алгоритма
-SQ_SIZE = 9 # Размер окна включения в анализ
-SENSOR_RANGE = 5  # Радиус действия сенсора
-STEP_SIZE = 0.5  # Длина шага
+SQ_SIZE = 12 # Размер окна включения в анализ
+SENSOR_RANGE = 8  # Радиус действия сенсора
+STEP_SIZE = 1  # Длина шага
 
-
-print("Current working directory:", os.getcwd())
+# print("Current working directory:", os.getcwd())
 
 def distance(point1, point2):
     """Вычисляет евклидово расстояние между двумя точками."""
@@ -58,6 +57,14 @@ def tangent_bug_algorithm(data, sensor_range, step_size):
     def step(current1, direction1, dest_point1):
         norm = math.sqrt(direction1['x']**2 + direction1['y']**2)
         step = min(step_size, distance(current1, dest_point1))
+        if norm == 0:
+            current_local = {
+            'x': current1['x'],
+            'y': current1['y']
+            }   
+            return current_local
+            exit(0)
+            norm = 0.1
         current_local = {
             'x': current1['x'] + direction1['x'] / norm * step,
             'y': current1['y'] + direction1['y'] / norm * step
@@ -66,6 +73,14 @@ def tangent_bug_algorithm(data, sensor_range, step_size):
     
     def big_step(current1, direction1, dest_point1):
         norm = math.sqrt(direction1['x']**2 + direction1['y']**2)
+        if norm == 0:
+            current_local = {
+            'x': current1['x'],
+            'y': current1['y']
+            }   
+            return current_local
+            exit(0)
+            norm = 0.1
         step = min(sensor_range, distance(current1, dest_point1))
         current_local = {
             'x': current1['x'] + direction1['x'] / norm * step,
@@ -85,12 +100,12 @@ def tangent_bug_algorithm(data, sensor_range, step_size):
     current = start
     count = 0
 
-    while distance(current, goal) > 1e-2 and count < 1000000:  # Пока не достигнем цели
+    while distance(current, goal) > 1e-2 and count < 1000:  # Пока не достигнем цели
         count += 1
         visible_points = []
 
         cur_polygons = get_cur_poly(polygons, current)
-        print(len(cur_polygons))
+        # print(len(cur_polygons))
 
         direction = {
                 'x': goal['x'] - current['x'],
@@ -99,13 +114,20 @@ def tangent_bug_algorithm(data, sensor_range, step_size):
 
         if is_visible(current, goal, cur_polygons) and distance(current, goal) <= sensor_range:
             # Если цель видна и в пределах сенсора, двигаемся прямо к цели
-            current = step(current, direction, goal)     
+            new_pos = step(current, direction, goal)
+            if current['x'] == new_pos['x'] and current['y'] == new_pos['y']:
+                return path, count 
+            current = new_pos.copy()    
             path.append(current)
+            
             continue
 
         closest_point = big_step(current, direction, goal)
         if is_visible(current, closest_point, cur_polygons):
-            current = step(current, direction, goal)
+            new_pos = step(current, direction, goal)
+            if current['x'] == new_pos['x'] and current['y'] == new_pos['y']:
+                return path, count 
+            current = new_pos.copy()
             path.append(current)
             continue
 
@@ -197,15 +219,17 @@ def visualize(data, path, sensor_range, count):
 
     plt.show()
 
-# Считываем данные из внешнего файла
-with open('D:\\study\\master\\sem_3\\tangent_bug\\obstacle_outputs\\dots10_density40_size1.json', 'r') as file:
-    data = json.load(file)
+if __name__ == "__main__":
 
-print("File is read")
-path, count = tangent_bug_algorithm(data, SENSOR_RANGE, STEP_SIZE)
-print(count)
-# Визуализируем путь
-start_time = time.time()
-visualize(data, path, SENSOR_RANGE, count)
-end_time = time.time()
-print(end_time - start_time)
+    # Считываем данные из внешнего файла
+    with open('C:\study\master\sem_3\\tangent_bug\obstacle_outputs\density_44_sample_5.json', 'r') as file:
+        data = json.load(file)
+
+    print("File is read")
+    path, count = tangent_bug_algorithm(data, SENSOR_RANGE, STEP_SIZE)
+    print(count)
+    # Визуализируем путь
+    start_time = time.time()
+    visualize(data, path, SENSOR_RANGE, count)
+    end_time = time.time()
+    print(end_time - start_time)
