@@ -1,2 +1,4 @@
 env
 vscode
+old
+__pycache__
