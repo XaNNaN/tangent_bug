@@ -1,4 +1,4 @@
 env
 .vscode
 old
-__pycache__
+tangent_bug/__pycache__
