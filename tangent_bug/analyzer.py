@@ -28,7 +28,7 @@ def call_with_decorator(func, *args, **kwargs):
     result, exec_time = decorated_func(*args, **kwargs)
     return result, exec_time
 def make_file_name(file_rel_path: str, density: int, sample: int)-> str:
-    file_name = file_rel_path + f'\\obstacle_outputs\\density_{density}_sample_{sample}.json'
+    file_name = file_rel_path + f'\\obstacle_outputs\\density_{density}_sample_{sample}_n.json'
     return file_name
 
 if __name__ == "__main__":
@@ -40,6 +40,7 @@ if __name__ == "__main__":
     total_timers = np.empty((0, 3))
 
     for density in range(1, density_counter):
+        cur_density_timers = np.empty((0, 3)) 
         for sample in range(samples_counter):
             file_path_name = make_file_name(str(cwd), density, sample)
             with open(file_path_name, 'r') as file:
@@ -55,3 +56,5 @@ if __name__ == "__main__":
 
 df = pd.DataFrame(total_timers)
 print(df.describe())
+
+df.to_csv("result.csv")

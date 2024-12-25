@@ -1,14 +1,16 @@
 import json
 import math
 import matplotlib.pyplot as plt
+import matplotlib.patches as pthc
 import os
 import time
 from matplotlib.animation import FuncAnimation
+from shapely.geometry import LineString
 
 # Параметры алгоритма
-SQ_SIZE = 12 # Размер окна включения в анализ
-SENSOR_RANGE = 8  # Радиус действия сенсора
-STEP_SIZE = 1  # Длина шага
+SQ_SIZE = 14 # Размер окна включения в анализ
+SENSOR_RANGE = 10  # Радиус действия сенсора
+STEP_SIZE = 0.8  # Длина шага
 
 # print("Current working directory:", os.getcwd())
 
@@ -21,6 +23,7 @@ def is_visible(current, target, polygons):
     Проверяет, существует ли прямая видимость между двумя точками
     с учетом всех препятствий.
     """
+
     for polygon in polygons:
         points = polygon['points']
         n = len(points)
@@ -33,7 +36,23 @@ def is_visible(current, target, polygons):
 
 def is_within_square(current, anchor, square_size=50):
     """Проверяет, попадает ли якорная точка полигона в квадратную область вокруг текущей точки робота."""
-    return abs(current['x'] - anchor['x']) <= square_size and abs(current['y'] - anchor['y']) <= square_size
+    return abs(current['x'] - anchor['x']) <= square_size / 2 and abs(current['y'] - anchor['y']) <= square_size / 2
+
+
+def get_midpoint(point1, point2):
+    """
+    Возвращает координаты средней точки между двумя заданными точками.
+
+    Args:
+        point1: Словарь с координатами первой точки, например, {'x': x1, 'y': y1}.
+        point2: Словарь с координатами второй точки, например, {'x': x2, 'y': y2}.
+
+    Returns:
+        Словарь с координатами средней точки, например, {'x': x_mid, 'y': y_mid}.
+    """
+    x_mid = (point1['x'] + point2['x']) / 2
+    y_mid = (point1['y'] + point2['y']) / 2
+    return {'x': x_mid, 'y': y_mid}
 
 def lines_intersect(a, b, c, d):
     """
@@ -43,7 +62,28 @@ def lines_intersect(a, b, c, d):
     def ccw(p1, p2, p3):
         return (p3['y'] - p1['y']) * (p2['x'] - p1['x']) > (p2['y'] - p1['y']) * (p3['x'] - p1['x'])
 
-    return ccw(a, c, d) != ccw(b, c, d) and ccw(a, b, c) != ccw(a, b, d)
+    def point_on_segment(p, a, b):
+        """Проверяет, лежит ли точка p на отрезке (a, b)."""
+        crossproduct = (p['y'] - a['y']) * (b['x'] - a['x']) - (p['x'] - a['x']) * (b['y'] - a['y'])
+        if abs(crossproduct) > 1e-10:
+            return False
+        dotproduct = (p['x'] - a['x']) * (b['x'] - a['x']) + (p['y'] - a['y']) * (b['y'] - a['y'])
+        if dotproduct < 0:
+            return False
+        squaredlength = (b['x'] - a['x'])**2 + (b['y'] - a['y'])**2
+        if dotproduct > squaredlength:
+            return False
+        return True
+
+    if ccw(a, c, d) != ccw(b, c, d) and ccw(a, b, c) != ccw(a, b, d):
+        # Проверка пересечения и исключение случая, когда точки лежат на прямых
+        # if point_on_segment(a, c, d) or point_on_segment(b, c, d) or point_on_segment(c, a, b) or point_on_segment(d, a, b):
+        #     return False
+        return True
+
+    return False
+
+
 
 def get_cur_poly(polygons, current):
     cur_poly = []
@@ -63,8 +103,7 @@ def tangent_bug_algorithm(data, sensor_range, step_size):
             'y': current1['y']
             }   
             return current_local
-            exit(0)
-            norm = 0.1
+
         current_local = {
             'x': current1['x'] + direction1['x'] / norm * step,
             'y': current1['y'] + direction1['y'] / norm * step
@@ -79,8 +118,6 @@ def tangent_bug_algorithm(data, sensor_range, step_size):
             'y': current1['y']
             }   
             return current_local
-            exit(0)
-            norm = 0.1
         step = min(sensor_range, distance(current1, dest_point1))
         current_local = {
             'x': current1['x'] + direction1['x'] / norm * step,
@@ -122,6 +159,10 @@ def tangent_bug_algorithm(data, sensor_range, step_size):
             
             continue
 
+        if count == 900:
+            pass
+
+        # Цель видна, но за рамками одного шага
         closest_point = big_step(current, direction, goal)
         if is_visible(current, closest_point, cur_polygons):
             new_pos = step(current, direction, goal)
@@ -131,18 +172,26 @@ def tangent_bug_algorithm(data, sensor_range, step_size):
             path.append(current)
             continue
 
+        # Есть препятствие, а мы не в ловушке
         for polygon in cur_polygons:
             for point in polygon['points']:
-                if is_visible(current, point, cur_polygons) and distance(current, point) <= sensor_range:
+                if is_visible(current, point, cur_polygons) and distance(current, point) <= sensor_range and distance(current, point) > 0.001: 
                     visible_points.append(point)
 
-        # Если видимых точек нет, то  
+
+        # Ловушка 
         if not visible_points:
-            print("Цель недостижима!")
+            # print("Цель недостижима!")
+            # exit(0)
             return path, count
 
         # Выбираем видимую точку, ближайшую к цели
         closest_point = min(visible_points, key=lambda p: distance(p, goal))
+
+        if distance(closest_point, current) < 0.1:
+            visible_points.remove(closest_point)
+            if len(visible_points) > 0:
+                closest_point = min(visible_points, key=lambda p: distance(p, goal))
 
         # Двигаемся на шаг в направлении ближайшей точки
         direction = {
@@ -151,6 +200,7 @@ def tangent_bug_algorithm(data, sensor_range, step_size):
         }
         current = step(current, direction, closest_point)
         path.append(current)
+
 
     return path, count
 
@@ -185,7 +235,9 @@ def visualize(data, path, sensor_range, count):
     # Путь робота
     path_line, = ax.plot([], [], color='blue', linewidth=2, label="Path")
     sensor_circle = plt.Circle((0, 0), sensor_range, color='cyan', fill=False, linestyle='--', linewidth=1)
+    sensor_poly = pthc.Rectangle((0 - SQ_SIZE / 2,0 + SQ_SIZE / 2), SQ_SIZE, SQ_SIZE, fill=False)
     ax.add_artist(sensor_circle)
+    # ax.add_artist(sensor_poly)
 
     ax.legend()
     ax.grid(True)
@@ -195,7 +247,8 @@ def visualize(data, path, sensor_range, count):
         """Инициализация анимации."""
         path_line.set_data([], [])
         sensor_circle.set_center((start['x'], start['y']))
-        return path_line, sensor_circle
+        # sensor_poly.set_xy((start['x'] - SQ_SIZE / 2, start['y'] - SQ_SIZE /2))
+        return path_line, sensor_circle 
 
     def update(frame):
         """Обновление на каждом кадре."""
@@ -210,6 +263,7 @@ def visualize(data, path, sensor_range, count):
         # Обновляем положение сенсора
         current_position = path[frame]
         sensor_circle.set_center((current_position['x'], current_position['y']))
+        # sensor_poly.set_xy((current_position['x'] - SQ_SIZE / 2, current_position['y']))
 
         return path_line, sensor_circle
 
@@ -222,14 +276,15 @@ def visualize(data, path, sensor_range, count):
 if __name__ == "__main__":
 
     # Считываем данные из внешнего файла
-    with open('C:\study\master\sem_3\\tangent_bug\obstacle_outputs\density_44_sample_5.json', 'r') as file:
+    
+    with open('D:\study\master\sem_3\\tangent_bug\obstacle_outputs\density_34_sample_9_n.json', 'r') as file:
         data = json.load(file)
 
     print("File is read")
+    start_time = time.time()
     path, count = tangent_bug_algorithm(data, SENSOR_RANGE, STEP_SIZE)
+    end_time = time.time()
     print(count)
     # Визуализируем путь
-    start_time = time.time()
-    visualize(data, path, SENSOR_RANGE, count)
-    end_time = time.time()
     print(end_time - start_time)
+    visualize(data, path, SENSOR_RANGE, count)

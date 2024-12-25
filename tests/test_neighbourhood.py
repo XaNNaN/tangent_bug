@@ -1,6 +1,6 @@
 import numpy as np
 
-from  tangent_bug.neighbourhood import neighbours_for_point
+from  old.neighbourhood import neighbours_for_point
 from numpy.testing import assert_array_equal
 
 def check_arrays(result, exp_arr1, exp_arr2):
